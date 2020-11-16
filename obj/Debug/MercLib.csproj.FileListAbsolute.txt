@@ -1,0 +1,7 @@
+C:\Users\Harry B\Desktop\Programs\C#\repos\MercLib\obj\Debug\MercLib.csprojAssemblyReference.cache
+C:\Users\Harry B\Desktop\Programs\C#\repos\MercLib\obj\Debug\MercLib.csproj.CoreCompileInputs.cache
+C:\Users\Harry B\Desktop\Programs\C#\repos\MercLib\obj\Debug\MercLib.csproj.CopyComplete
+C:\Users\Harry B\Desktop\CSBuild\MercLib.dll
+C:\Users\Harry B\Desktop\CSBuild\MercLib.pdb
+C:\Users\Harry B\Desktop\Programs\C#\repos\MercLib\obj\Debug\MercLib.dll
+C:\Users\Harry B\Desktop\Programs\C#\repos\MercLib\obj\Debug\MercLib.pdb
