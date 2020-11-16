@@ -1,0 +1,7 @@
+*.cache
+*.dll
+*.pdb
+obj/*
+.vs/*
+*.user
+*.csproj
