@@ -51,5 +51,24 @@ namespace MercLib.Utils
                 return list;
             }
         }
+
+        public static TroopRoster ConstructTroopRoster(PartyTemplateObject template, PartyBase party)
+        {
+            TroopRoster roster = new TroopRoster(party);
+            foreach(PartyTemplateStack stack in template.Stacks)
+            {
+                int num = MBRandom.RandomInt(stack.MinValue, stack.MaxValue);
+                roster.AddToCounts(stack.Character, num);
+            }
+            return roster;
+        }
+
+        //lifted from BanditsCampaignBehavior
+        public static void CreatePartyTrade(MobileParty banditParty)
+        {
+            float totalStrength = banditParty.Party.TotalStrength;
+            int initialGold = (int)(10f * (float)banditParty.Party.MemberRoster.TotalManCount * (0.5f + 1f * MBRandom.RandomFloat));
+            banditParty.InitializePartyTrade(initialGold);
+        }
     }
 }

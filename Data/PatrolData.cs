@@ -12,6 +12,7 @@ using TaleWorlds.Library;
 
 namespace MercLib.Data
 {
+    //"data manager" system partly taken from Anopey/CustomSpawns github repo
     class PatrolDataManager
     {
         static PatrolDataManager _instance;

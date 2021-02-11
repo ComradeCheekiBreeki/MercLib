@@ -88,23 +88,5 @@ namespace MercLib.Utils
             }
             return 1;
         }
-
-        /* public static int GetNumberOfGarrisonersWillingToJoinAsMercenary(Town town, int midTier, int officerTier, int numOfficerTroops)
-        {
-            float satisfaction = CalculateGarrisonSatsifaction(town);
-            float factor = (satisfaction * 0.12f) / 100f;
-            int maxBase = (int)(factor * town.GarrisonParty.MemberRoster.TotalHealthyCount);
-
-            int charCount = 0;
-            int remainder = 0;
-            foreach (TroopRosterElement t in town.GarrisonParty.MemberRoster.ToList())
-            {
-                if(t.Character.Tier == midTier)
-                {
-
-                }
-            }
-            return charCount;
-        } does not work */
     }
 }

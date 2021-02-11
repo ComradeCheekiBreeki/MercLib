@@ -200,38 +200,6 @@ namespace MercLib.CampaignBehaviors
             return true;
         }
 
-        /* private static bool ml_garrison_recruitment_condition(MenuCallbackArgs args, Dictionary<string, CampaignTime> dict)
-        {
-            args.optionLeaveType = GameMenuOption.LeaveType.Recruit;
-            if(Settlement.CurrentSettlement.Town.Security <= 40)
-            {
-                args.IsEnabled = false;
-                args.Tooltip = new TextObject("{=ml.tooltip.low.security}The garrison cannot spare troops because security is too low.", null);
-            }
-            else if (dict.ContainsKey(Settlement.CurrentSettlement.StringId))
-            {
-                if(dict[Settlement.CurrentSettlement.StringId].ElapsedDaysUntilNow <= 12)
-                {
-                    args.IsEnabled = false;
-                    args.Tooltip = new TextObject("{=ml.recruited.too.recently}You have recently conscripted troops from this garrison.");
-                }
-            }
-            return Settlement.CurrentSettlement.OwnerClan != Clan.PlayerClan;
-        }
-
-        private static bool ml_agree_pay_troop_cost_condition(MenuCallbackArgs args)
-        {
-            args.optionLeaveType = GameMenuOption.LeaveType.RansomAndBribe;
-            int numWillingToJoin = TownUtils.GetNumberOfGarrisonersWillingToJoinAsMercenary(Settlement.CurrentSettlement.Town, 3, 4, 2);
-            MBTextManager.SetTextVariable("ML_TROOPS_COST", (numWillingToJoin * 80));
-            if(Hero.MainHero.Gold < (numWillingToJoin * 80))
-            {
-                args.IsEnabled = false;
-                args.Tooltip = new TextObject("{=ml.not.enough.gold}You don't have enough gold.", null);
-            }
-            return true;
-        } */
-
         private static bool ml_ask_garrison_detachment_condition(MenuCallbackArgs args, bool isFull)
         {
             args.optionLeaveType = GameMenuOption.LeaveType.Manage;
@@ -292,41 +260,12 @@ namespace MercLib.CampaignBehaviors
             GameMenu.ActivateGameMenu("ml_garrison_menu");
         }
 
-        /* private static void ml_menu_ask_recruits_garrison_consequence(MenuCallbackArgs args)
-        {
-            GameMenu.ActivateGameMenu("ml_garrison_trooptalk_menu");
-        }
-
-        private static void ml_menu_accept_recruits_pay_consequence(MenuCallbackArgs args)
-        {
-            int midTier = 3;
-            int officerTier = 4;
-            int numWillingToJoin = TownUtils.GetNumberOfGarrisonersWillingToJoinAsMercenary(Settlement.CurrentSettlement.Town, midTier, officerTier, 2);
-            int numOfficersJoining = (int)(numWillingToJoin * 0.1f);
-            List<CharacterObject> baseChars = new List<CharacterObject>();
-            List<CharacterObject> offChars = new List<CharacterObject>();
-
-            foreach (PartyTemplateStack s in Settlement.CurrentSettlement.Town.Culture.DefaultPartyTemplate.Stacks)
-            {
-                if (s.Character.Tier < midTier)
-                    baseChars.Add(s.Character);
-                else if (s.Character.Tier == officerTier)
-                    offChars.Add(s.Character);
-            }
-
-            MobileParty.MainParty.AddElementToMemberRoster(baseChars.GetRandomElement(), numWillingToJoin, false);
-            MobileParty.MainParty.AddElementToMemberRoster(offChars.GetRandomElement(), numOfficersJoining, false);
-
-            GiveGoldAction.ApplyBetweenCharacters(Hero.MainHero, null, numWillingToJoin * 80, false);
-            GameMenu.SwitchToMenu("town");
-        } */
-
         private static void ml_ask_garrison_detachment_consequence(MenuCallbackArgs args)
         {
             GameMenu.ActivateGameMenu("ml_patrol_buying_menu");
         }
 
-        private static void ml_form_garrison_detachment_consequence(MenuCallbackArgs args, PatrolData dat)
+        private void ml_form_garrison_detachment_consequence(MenuCallbackArgs args, PatrolData dat)
         {
             List<InquiryElement> inq = MenuUtils.AssemblePatrolSizes(dat);
             InformationManager.ShowMultiSelectionInquiry(new MultiSelectionInquiryData(new TextObject("{=ml.patrol.size.select}Select Size").ToString(), new TextObject("{=ml.patrol.size.select.desc}Select the size of the patrol you want.").ToString(), inq, true, 1, "Name and purchase", "Cancel",
@@ -339,7 +278,8 @@ namespace MercLib.CampaignBehaviors
                             InformationManager.ShowTextInquiry(new TextInquiryData(new TextObject("{=ml.name.patrol}Select your patrol's name: ", null).ToString(), string.Empty, true, false, GameTexts.FindText("str_done", null).ToString(), null,
                                 delegate(string str)
                                 {
-                                    SpawnTownPatrol(str, dat);
+                                    TownPatrolData newPatrol = SpawnTownPatrol(str, selection[0].Title.ToLower(), dat, true);
+                                    this._mlTownPatrols[Settlement.CurrentSettlement.StringId].Add(newPatrol);
                                     InformationManager.HideInquiry();
                                 }, null, false, null, "", Settlement.CurrentSettlement.Name.ToString() + " " + dat.name ));
                         }
@@ -407,63 +347,6 @@ namespace MercLib.CampaignBehaviors
             }
         }
 
-        /* private static void ml_garrison_trooptalk_menu_init(MenuCallbackArgs args)
-        {
-            TextObject text = new TextObject("", null);
-            CharacterObject captain;
-            List<CharacterObject> officerChars = new List<CharacterObject>();
-            args.MenuTitle = new TextObject("{ml.garrison.title}Garrison Headquarters", null);
-            foreach (CharacterObject obj in Settlement.CurrentSettlement.Town.GarrisonParty.MemberRoster.Troops)
-            {
-                if (obj.Tier >= 5)
-                {
-                    officerChars.Add(obj);
-                }
-            }
-            if(officerChars.Count == 0)
-            {
-                officerChars.Add(MBObjectManager.Instance.GetObject<CharacterObject>("imperial_menavliaton"));
-            }
-            captain = officerChars.GetRandomElement();
-            MBTextManager.SetTextVariable("ML_OFFICER", captain.EncyclopediaLinkWithName);
-            int numWillingToJoin = TownUtils.GetNumberOfGarrisonersWillingToJoinAsMercenary(Settlement.CurrentSettlement.Town, 3, 4, 2);
-            MBTextManager.SetTextVariable("ML_TROOP_COUNT", numWillingToJoin);
-
-            float num = MBRandom.RandomFloatRanged(0f, 1.0f);
-            if (numWillingToJoin > 0)
-            {
-                if (num <= 0.25)
-                {
-                    text = new TextObject("{=ml.officer.comment.1}Yes, me and my boys' tenures are almost up. Us {ML_COUNT} would be happy to join you, for a fee.");
-                }
-                else if (num <= 0.5)
-                {
-                    text = new TextObject("{=ml.officer.comment.2}Looking for men, sir? We're {ML_COUNT} all together, I bet we could do you well as fighters.");
-                }
-                else if (num <= 0.75)
-                {
-                    text = new TextObject("{=ml.officer.comment.3}Lucky you caught us, our contract is just about expired. We number {ML_COUNT} in all, how about you take us on?");
-                }
-                else
-                {
-                    text = new TextObject("{=ml.officer.comment.4}Right, well me and {ML_COUNT} of my men would like to join you. How about it?");
-                }
-                text.SetTextVariable("ML_COUNT", numWillingToJoin);
-                MBTextManager.SetTextVariable("CAPTAIN_COMMENT", text);
-            }
-            else
-            {
-                TextObject text2 = new TextObject("{= ml.no.troops.available }Well, we're fighting men alright, but we can't spare our contracts. Besides, we wouldn't dare disobey the {RULER_TITLE}.");
-                string rtext = Settlement.CurrentSettlement.MapFaction.Culture.StringId;
-                if(Settlement.CurrentSettlement.MapFaction.Leader.IsFemale)
-                {
-                    rtext += "_f";
-                }
-                text2.SetTextVariable("RULER_TITLE", GameTexts.FindText("str_faction_ruler", rtext));
-                MBTextManager.SetTextVariable("CAPTAIN_COMMENT", text2);
-            }
-        } */
-
         private static void ml_garrison_commander_intro_menu_init(MenuCallbackArgs args)
         {
             args.MenuTitle = new TextObject("Commander's Office", null);
@@ -492,9 +375,39 @@ namespace MercLib.CampaignBehaviors
 
         #endregion Menu inits
 
-        private static void SpawnTownPatrol(string name, PatrolData dat)
+        private static TownPatrolData SpawnTownPatrol(string name, string size, PatrolData dat, bool isPlayerSpawn, Settlement spawnSettlement = null)
         {
+            MBObjectManager objManager = Game.Current.ObjectManager;
+            TextObject pName = new TextObject(name);
 
+            PartyTemplateObject templateObject = (PartyTemplateObject)objManager.GetObject<PartyTemplateObject>(dat.templateName + "_" + size);
+            spawnSettlement = isPlayerSpawn ? Settlement.CurrentSettlement : spawnSettlement;
+
+            MobileParty patrol = objManager.CreateObject<MobileParty>(dat.templateName + "_" + size + "_" + 1);
+            patrol.InitializeMobileParty(MenuUtils.ConstructTroopRoster(templateObject, patrol.Party), new TroopRoster(patrol.Party), isPlayerSpawn ? Settlement.CurrentSettlement.GatePosition : spawnSettlement.GatePosition, 0);
+
+            patrol.SetCustomName(pName);
+            patrol.Party.Owner = spawnSettlement.MapFaction.Leader == null ? spawnSettlement.OwnerClan.Heroes.ToList().First() : spawnSettlement.OwnerClan.Leader;
+            patrol.Party.Visuals.SetMapIconAsDirty();
+            patrol.ActualClan = spawnSettlement.OwnerClan;
+            patrol.HomeSettlement = spawnSettlement;
+            MenuUtils.CreatePartyTrade(patrol);
+
+            foreach(ItemObject obj in ItemObject.All)
+            {
+                if(obj.IsFood)
+                {
+                    int num = MBRandom.RandomInt(patrol.MemberRoster.TotalManCount / 3, patrol.MemberRoster.TotalManCount);
+                    if (num > 0)
+                    {
+                        patrol.ItemRoster.AddToCounts(obj, num);
+                    }
+                }
+            }
+
+            patrol.SetMovePatrolAroundSettlement(spawnSettlement);
+
+            return new TownPatrolData(pName.ToString(), size, patrol);
         }
 
         private void GetData()
