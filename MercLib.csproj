@@ -34,7 +34,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>..\..\..\..\Refs\0Harmony.dll</HintPath>
+      <HintPath>..\..\Refs\0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="SandBox">
@@ -215,8 +215,11 @@
   <ItemGroup>
     <Compile Include="CampaignBehaviors\GarrisonCommandCampaignBehavior.cs" />
     <Compile Include="CampaignBehaviors\MercenaryRecruitmentFromFactionBehavior.cs" />
+    <Compile Include="Data\PatrolData.cs" />
     <Compile Include="Main.cs" />
+    <Compile Include="Patrols\TownPatrolData.cs" />
     <Compile Include="Utils\DiplomacyUtils.cs" />
+    <Compile Include="Utils\MenuUtils.cs" />
     <Compile Include="Utils\TownUtils.cs" />
   </ItemGroup>
   <ItemGroup>

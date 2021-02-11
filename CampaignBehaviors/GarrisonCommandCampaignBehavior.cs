@@ -10,6 +10,8 @@ using TaleWorlds.CampaignSystem.GameMenus;
 using TaleWorlds.CampaignSystem.Actions;
 using TaleWorlds.Localization;
 using MercLib.Utils;
+using MercLib.Patrols;
+using MercLib.Data;
 
 namespace MercLib.CampaignBehaviors
 {
@@ -19,19 +21,21 @@ namespace MercLib.CampaignBehaviors
         {
             CampaignEvents.OnSessionLaunchedEvent.AddNonSerializedListener(this, new Action<CampaignGameStarter>(this.AddMenuOptions));
             CampaignEvents.OnNewGameCreatedEvent.AddNonSerializedListener(this, new Action<CampaignGameStarter>(this.OnAfterNewGameCreated));
-            CampaignEvents.OnGameLoadedEvent.AddNonSerializedListener(this, new Action<CampaignGameStarter>(this.OnAfterNewGameCreated));
         }
 
         public override void SyncData(IDataStore dataStore)
         {
             dataStore.SyncData<List<Settlement>>("_mlBribedTowns", ref _mlBribedTowns);
-            dataStore.SyncData<Dictionary<string, CampaignTime>>("_mlLastRecruitedTownsTime", ref _mlLastRecruitedTownsTime);
+            dataStore.SyncData<Dictionary<string, List<TownPatrolData>>>("_mlTownPatrols", ref _mlTownPatrols);
+            // dataStore.SyncData<Dictionary<string, CampaignTime>>("_mlLastRecruitedTownsTime", ref _mlLastRecruitedTownsTime);
         }
 
         public void OnAfterNewGameCreated(CampaignGameStarter starter)
         {
-            this._mlLastRecruitedTownsTime = new Dictionary<string, CampaignTime>();
+            this._mlTownPatrols = new Dictionary<string, List<TownPatrolData>>();
         }
+
+        private PatrolDataManager manager;
 
         public void AddMenuOptions(CampaignGameStarter starter)
         {
@@ -77,22 +81,6 @@ namespace MercLib.CampaignBehaviors
 
             starter.AddGameMenu("ml_garrison_menu", "{=ml.garrison.flavortext}You step into the garrison headquarters of {ML_GARRISON_TOWN_NAME}, a {ML_GARRISON_DESC} adjacent to the keep. Inside you can see {ML_GARRISON_FLAVOR} \n \n You can gauge the air in the room is one {ML_GARRISON_SATISFACTION}",
                 new OnInitDelegate(GarrisonCommandCampaignBehavior.ml_town_init_garrison_menu), TaleWorlds.CampaignSystem.Overlay.GameOverlays.MenuOverlayType.SettlementWithBoth, GameMenu.MenuFlags.none, null);
-            starter.AddGameMenuOption("ml_garrison_menu", "ml_garrison_ask_to_recruit", "{=ml.ask.garrison.recruits}Ask for mercenary volunteers.",
-                (MenuCallbackArgs args) =>
-                {
-                    if (_mlLastRecruitedTownsTime.ContainsKey(Settlement.CurrentSettlement.StringId))
-                    {
-                        if (_mlLastRecruitedTownsTime[Settlement.CurrentSettlement.StringId].ElapsedDaysUntilNow > 12)
-                        {
-                            _mlLastRecruitedTownsTime.Remove(Settlement.CurrentSettlement.StringId);
-                        }
-                    }
-                    return GarrisonCommandCampaignBehavior.ml_garrison_recruitment_condition(args, _mlLastRecruitedTownsTime);
-                },
-                (MenuCallbackArgs args) =>
-                {
-                    GarrisonCommandCampaignBehavior.ml_menu_ask_recruits_garrison_consequence(args);
-                }, false, -1, false);
             starter.AddGameMenuOption("ml_garrison_menu", "ml_garrison_leave", "{=ml.leave}Leave.",
                 new GameMenuOption.OnConditionDelegate(GarrisonCommandCampaignBehavior.ml_leave_condition),
                 (MenuCallbackArgs args) =>
@@ -102,28 +90,68 @@ namespace MercLib.CampaignBehaviors
 
             #endregion Base
 
-            #region Mercenary recruitment
+            #region Talking to garrison commander
 
-            starter.AddGameMenu("ml_garrison_trooptalk_menu", "{=ml.garrison.recruitmentarea}You approach a group of mercenary men chatting in the corner. When you inquire, their captain, {ML_OFFICER}, greets you and says: \n \n '{CAPTAIN_COMMENT}'",
-                new OnInitDelegate(GarrisonCommandCampaignBehavior.ml_garrison_trooptalk_menu_init), TaleWorlds.CampaignSystem.Overlay.GameOverlays.MenuOverlayType.SettlementWithBoth, GameMenu.MenuFlags.none, null);
-            starter.AddGameMenuOption("ml_garrison_trooptalk_menu", "ml_garrison_trooptalk_agree_pay", "{=ml.pay.garrison.troops}Agree and pay {GOLD_ICON}{ML_TROOPS_COST}.",
-                new GameMenuOption.OnConditionDelegate(GarrisonCommandCampaignBehavior.ml_agree_pay_troop_cost_condition),
+            starter.AddGameMenu("ml_garrison_talk_commander_menu", "{ML_COMMANDER_INTRO}",
+                new OnInitDelegate(GarrisonCommandCampaignBehavior.ml_garrison_commander_intro_menu_init), TaleWorlds.CampaignSystem.Overlay.GameOverlays.MenuOverlayType.SettlementWithBoth, GameMenu.MenuFlags.none, null);
+            starter.AddGameMenuOption("ml_garrison_talk_commander_menu", "ml_garrison_commander_buy_patrols", "{=ml.talk.commander.about.patrols}Form a garrison detachment.",
                 (MenuCallbackArgs args) =>
                 {
-                    GarrisonCommandCampaignBehavior.ml_menu_accept_recruits_pay_consequence(args);
-                    if (!this._mlLastRecruitedTownsTime.ContainsKey(Settlement.CurrentSettlement.StringId))
+                    bool isFull = false;
+                    if(!_mlTownPatrols.ContainsKey(Settlement.CurrentSettlement.StringId))
                     {
-                        this._mlLastRecruitedTownsTime.Add(Settlement.CurrentSettlement.StringId, CampaignTime.Now);
+                        _mlTownPatrols.Add(Settlement.CurrentSettlement.StringId, new List<TownPatrolData>());
                     }
-                }, false, -1, false);
-            starter.AddGameMenuOption("ml_garrison_trooptalk_menu", "ml_garrison_trooptalk_leave", "{=ml.leave}Leave.",
-                new GameMenuOption.OnConditionDelegate(GarrisonCommandCampaignBehavior.ml_leave_condition),
+                    else if(_mlTownPatrols[Settlement.CurrentSettlement.StringId].Count() >= TownUtils.GetNumberOfDetachmentsFormable(Settlement.CurrentSettlement.Town))
+                    {
+                        isFull = true;
+                    }
+                    return GarrisonCommandCampaignBehavior.ml_ask_garrison_detachment_condition(args, isFull);
+                },
                 (MenuCallbackArgs args) =>
                 {
-                    GameMenu.SwitchToMenu("town");
-                }, true, -1, false);
+                    GarrisonCommandCampaignBehavior.ml_ask_garrison_detachment_consequence(args);
+                }, false, -1, false);
 
-            #endregion Mercenary recruitment
+            #endregion Talking to garrison commander
+
+            #region Buying patrols menu
+
+            starter.AddGameMenu("ml_patrol_buying_menu", "Below is a list of the available types of patrols you can purchase for this settlement. \n \n Settlement patrols: ({ML_GARRISON_PATROL_NUM}/{ML_GARRISON_PATROL_MAX})",
+                (MenuCallbackArgs args) =>
+                {
+                    ml_garrison_buy_patrol_menu_init(args, _mlTownPatrols);
+                }, 
+                TaleWorlds.CampaignSystem.Overlay.GameOverlays.MenuOverlayType.SettlementWithBoth, GameMenu.MenuFlags.none, null);
+
+            //here we repetedly define menu options in the foreach loop- can lead to probelms down the line if patrols are changed or something, for now it's fine
+            foreach(PatrolData dat in manager.Patrols)
+            {
+                starter.AddGameMenuOption("ml_patrol_buying_menu", "ml_garrison_buy_patrol_" + dat.templateName, "{=ml.buy.text}Buy " + dat.name + " (starting at " + dat.basePrice + "{GOLD_ICON})",
+                    (MenuCallbackArgs args) =>
+                    {
+                        args.optionLeaveType = GameMenuOption.LeaveType.Recruit;
+                        args.Tooltip = new TextObject(dat.description);
+                        if(Settlement.CurrentSettlement.Culture == dat.culture)
+                        {
+                            if(Hero.MainHero.Gold >= dat.basePrice)
+                            {
+                                return true;
+                            }
+                            args.IsEnabled = false;
+                            args.Tooltip = new TextObject("You do not have enough money to buy this patrol.");
+                            return true;
+                        }
+                        return false;
+                    },
+                    (MenuCallbackArgs args) =>
+                    {
+                        return;
+                    }, false, -1, false);
+            }
+
+
+            #endregion Buying patrols menu
 
             #endregion Garrison menu
         }
@@ -172,7 +200,7 @@ namespace MercLib.CampaignBehaviors
             return true;
         }
 
-        private static bool ml_garrison_recruitment_condition(MenuCallbackArgs args, Dictionary<string, CampaignTime> dict)
+        /* private static bool ml_garrison_recruitment_condition(MenuCallbackArgs args, Dictionary<string, CampaignTime> dict)
         {
             args.optionLeaveType = GameMenuOption.LeaveType.Recruit;
             if(Settlement.CurrentSettlement.Town.Security <= 40)
@@ -200,6 +228,33 @@ namespace MercLib.CampaignBehaviors
             {
                 args.IsEnabled = false;
                 args.Tooltip = new TextObject("{=ml.not.enough.gold}You don't have enough gold.", null);
+            }
+            return true;
+        } */
+
+        private static bool ml_ask_garrison_detachment_condition(MenuCallbackArgs args, bool isFull)
+        {
+            args.optionLeaveType = GameMenuOption.LeaveType.Manage;
+            if(!(Settlement.CurrentSettlement.MapFaction == Hero.MainHero.MapFaction))
+            {
+                bool playerOwnsWorkshop = false;
+                foreach(Workshop w in Settlement.CurrentSettlement.Town.Workshops)
+                {
+                    if(w.Owner == Hero.MainHero)
+                    {
+                        playerOwnsWorkshop = true;
+                    }
+                }
+                if(!playerOwnsWorkshop)
+                {
+                    args.IsEnabled = false;
+                    args.Tooltip = new TextObject("You are not affiliated with this settlement.");
+                }
+            }
+            else if(isFull)
+            {
+                args.IsEnabled = false;
+                args.Tooltip = new TextObject("This settlement has reached the maximum number of patrols.");
             }
             return true;
         }
@@ -237,45 +292,63 @@ namespace MercLib.CampaignBehaviors
             GameMenu.ActivateGameMenu("ml_garrison_menu");
         }
 
-        private static void ml_menu_ask_recruits_garrison_consequence(MenuCallbackArgs args)
+        /* private static void ml_menu_ask_recruits_garrison_consequence(MenuCallbackArgs args)
         {
             GameMenu.ActivateGameMenu("ml_garrison_trooptalk_menu");
         }
 
         private static void ml_menu_accept_recruits_pay_consequence(MenuCallbackArgs args)
         {
-            TroopRoster roster = new TroopRoster(PartyBase.MainParty);
-            int numWillingToJoin = TownUtils.GetNumberOfGarrisonersWillingToJoinAsMercenary(Settlement.CurrentSettlement.Town, 3, 4, 2);
-            List<CharacterObject> chars = new List<CharacterObject>();
-            foreach (CharacterObject c in Settlement.CurrentSettlement.Town.GarrisonParty.MemberRoster.Troops)
+            int midTier = 3;
+            int officerTier = 4;
+            int numWillingToJoin = TownUtils.GetNumberOfGarrisonersWillingToJoinAsMercenary(Settlement.CurrentSettlement.Town, midTier, officerTier, 2);
+            int numOfficersJoining = (int)(numWillingToJoin * 0.1f);
+            List<CharacterObject> baseChars = new List<CharacterObject>();
+            List<CharacterObject> offChars = new List<CharacterObject>();
+
+            foreach (PartyTemplateStack s in Settlement.CurrentSettlement.Town.Culture.DefaultPartyTemplate.Stacks)
             {
-                if(chars.Count < (numWillingToJoin - 2))
-                {
-                    if (c.Tier <= 3)
-                    {
-                        chars.Add(c);
-                    }
-                }
-                else if(chars.Count < numWillingToJoin)
-                {
-                    if (c.Tier <= 4)
-                    {
-                        chars.Add(c);
-                    }
-                }
-                else
-                {
-                    break;
-                }
+                if (s.Character.Tier < midTier)
+                    baseChars.Add(s.Character);
+                else if (s.Character.Tier == officerTier)
+                    offChars.Add(s.Character);
             }
-            foreach(CharacterObject c in chars)
-            {
-                roster.AddToCounts(c, 1, false);
-                Settlement.CurrentSettlement.Town.GarrisonParty.MemberRoster.RemoveTroop(c);
-            }
-            MobileParty.MainParty.MemberRoster.Add(roster);
+
+            MobileParty.MainParty.AddElementToMemberRoster(baseChars.GetRandomElement(), numWillingToJoin, false);
+            MobileParty.MainParty.AddElementToMemberRoster(offChars.GetRandomElement(), numOfficersJoining, false);
+
             GiveGoldAction.ApplyBetweenCharacters(Hero.MainHero, null, numWillingToJoin * 80, false);
             GameMenu.SwitchToMenu("town");
+        } */
+
+        private static void ml_ask_garrison_detachment_consequence(MenuCallbackArgs args)
+        {
+            GameMenu.ActivateGameMenu("ml_patrol_buying_menu");
+        }
+
+        private static void ml_form_garrison_detachment_consequence(MenuCallbackArgs args, PatrolData dat)
+        {
+            List<InquiryElement> inq = MenuUtils.AssemblePatrolSizes(dat);
+            InformationManager.ShowMultiSelectionInquiry(new MultiSelectionInquiryData(new TextObject("{=ml.patrol.size.select}Select Size").ToString(), new TextObject("{=ml.patrol.size.select.desc}Select the size of the patrol you want.").ToString(), inq, true, 1, "Name and purchase", "Cancel",
+                delegate(List<InquiryElement> selection)
+                {
+                    if(selection != null)
+                    {
+                        if(selection.Count != 0)
+                        {
+                            InformationManager.ShowTextInquiry(new TextInquiryData(new TextObject("{=ml.name.patrol}Select your patrol's name: ", null).ToString(), string.Empty, true, false, GameTexts.FindText("str_done", null).ToString(), null,
+                                delegate(string str)
+                                {
+                                    SpawnTownPatrol(str, dat);
+                                    InformationManager.HideInquiry();
+                                }, null, false, null, "", Settlement.CurrentSettlement.Name.ToString() + " " + dat.name ));
+                        }
+                    }
+                }, 
+                delegate(List<InquiryElement> selection)
+                {
+                    InformationManager.HideInquiry();
+                } ));
         }
 
         #endregion Menu option consequences
@@ -306,7 +379,7 @@ namespace MercLib.CampaignBehaviors
                     MBTextManager.SetTextVariable("ML_GARRISON_SATISFACTION", "of destitution. The soldiers look underfed and glance longingly at their empty coin pouches between swigs of cheap alcohol. Some men curse out their commanders and lords in the corner.");
                     break;
                 case SettlementComponent.ProsperityLevel.Mid:
-                    MBTextManager.SetTextVariable("ML_GARRISON_SATISFACTION", "of typical military attitude. One or two men curse the commander under their breath, and some look on at the town with displeasure, but generally everyone is adquately fed and well enough off.");
+                    MBTextManager.SetTextVariable("ML_GARRISON_SATISFACTION", "of typical military attitude. One or two men curse the commander under their breath, and some look on at the town with displeasure, but generally everyone is adquately fed and well enough off for their status.");
                     break;
                 case SettlementComponent.ProsperityLevel.High:
                     MBTextManager.SetTextVariable("ML_GARRISON_SATISFACTION", "of general happiness and camraderie. The men look content and well-fed, and they sling jokes back and forth. Everyone seems like friends.");
@@ -322,7 +395,7 @@ namespace MercLib.CampaignBehaviors
             else if (num <= 0.75)
                 MBTextManager.SetTextVariable("ML_GARRISON_FLAVOR", "a handful of guards chatting in a corner, their comrades diligently watching the ramparts just outside.");
             else
-                MBTextManager.SetTextVariable("ML_GARRISON_FLAVOR", "a smattering of armed men lounging about, drinking and eating, sleeping and even smoking.");
+                MBTextManager.SetTextVariable("ML_GARRISON_FLAVOR", "a smattering of armed men lounging about, some eating or catching up on sleep.");
         }
 
         private static void ml_garrison_enter_bribe_menu_init(MenuCallbackArgs args, List<Settlement> bribedSettlements)
@@ -334,7 +407,7 @@ namespace MercLib.CampaignBehaviors
             }
         }
 
-        private static void ml_garrison_trooptalk_menu_init(MenuCallbackArgs args)
+        /* private static void ml_garrison_trooptalk_menu_init(MenuCallbackArgs args)
         {
             TextObject text = new TextObject("", null);
             CharacterObject captain;
@@ -389,11 +462,47 @@ namespace MercLib.CampaignBehaviors
                 text2.SetTextVariable("RULER_TITLE", GameTexts.FindText("str_faction_ruler", rtext));
                 MBTextManager.SetTextVariable("CAPTAIN_COMMENT", text2);
             }
+        } */
+
+        private static void ml_garrison_commander_intro_menu_init(MenuCallbackArgs args)
+        {
+            args.MenuTitle = new TextObject("Commander's Office", null);
+            TextObject comment = new TextObject();
+            if(Settlement.CurrentSettlement.OwnerClan == Hero.MainHero.Clan)
+                comment = new TextObject("{=ml.commander.town.clan}You knock on the door that says 'Commander,' and after a short wait a stout man with misadjusted spectacles comes and quickly hails you before speaking. \n \n 'Nothing to report, your {ML_PLAYER_G_PREFIX}ship. Is there something you need?'", null);
+            else if(Settlement.CurrentSettlement.MapFaction == Hero.MainHero.MapFaction)
+                comment = new TextObject("{=ml.commander.town.faction}You knock on the door that says 'Commander,' and after a short wait a stout man with misadjusted spectacles steps out and cordially greets you before speaking. \n \n 'Hello, my {ML_PLAYER_G_PREFIX}. I'll forward your business to the steward of this town when he returns. Is there something you need?'", null);
+            else
+                comment = new TextObject("{=ml.commander.town}You knock on the door that says 'Commander,' and after a short wait a stout man pushes open the door and greets you. \n \n 'Hmm? What is it? I'm a busy man.'", null);
+            
+            if(Hero.MainHero.IsFemale)
+                comment.SetTextVariable("ML_PLAYER_G_PREFIX", "lady");
+            else
+                comment.SetTextVariable("ML_PLAYER_G_PREFIX", "lord");
+
+            MBTextManager.SetTextVariable("ML_COMMANDER_INTRO", comment);
+        }
+        private static void ml_garrison_buy_patrol_menu_init(MenuCallbackArgs args, Dictionary<string, List<TownPatrolData>> dict)
+        {
+            args.MenuTitle = new TextObject("Commander's Office", null);
+
+            MBTextManager.SetTextVariable("ML_GARRISON_PATROL_NUM", dict[Settlement.CurrentSettlement.StringId].Count());
+            MBTextManager.SetTextVariable("ML_GARRISON_PATROL_MAX", TownUtils.GetNumberOfDetachmentsFormable(Settlement.CurrentSettlement.Town));
         }
 
         #endregion Menu inits
 
-        private Dictionary<string, CampaignTime> _mlLastRecruitedTownsTime;
+        private static void SpawnTownPatrol(string name, PatrolData dat)
+        {
+
+        }
+
+        private void GetData()
+        {
+            manager = PatrolDataManager.Instance;
+        }
+
+        private Dictionary<string, List<TownPatrolData>> _mlTownPatrols;
 
         private List<Settlement> _mlBribedTowns = new List<Settlement>();
     }

@@ -169,7 +169,7 @@ namespace MercLib.CampaignBehaviors
             else if ((Hero.MainHero.MapFaction == Hero.OneToOneConversationHero.MapFaction) && overallDisadvantaged)
             {
                 if (pRelation <= -10)
-                    text = new TextObject("{=ml.merc.in.kindgom.bad.war.hate}You have the audacity to ask me for my own men when we're knee deep in bodies? Begone from my sight!", null);
+                    text = new TextObject("{=ml.merc.in.kindgom.bad.war.hate}You have the audacity to ask me for my own men when we're already knee deep in bodies? Begone from my sight!", null);
                 else if (pRelation <= -3)
                     text = new TextObject("{=ml.merc.in.kingdom.bad.war.dislike}Even if I could spare some in the midst of this conflict, I wouldn't trust you to handle them. So the answer is no.", null);
                 else
@@ -204,7 +204,7 @@ namespace MercLib.CampaignBehaviors
                 if (pRelation <= -10)
                     text = new TextObject("{=ml.merc.in.other.kindgom.hate}I wouldn't entrust domestic duties to you, let alone a detachment of my own men. So no.", null);
                 else if (pRelation <= -3)
-                    text = new TextObject("{=ml.merc.in.other.kingdom.dislike}Well, I can, but I don't trust you to lead them into battle. If you want, I can send a detachment to accompany you.", null);
+                    text = new TextObject("{=ml.merc.in.other.kingdom.dislike}Very well, but I must send you with a retainer. He will ensure my men are treated fairly.", null);
                 else
                 {
                     text = new TextObject("{=ml.merc.in.other.kingdom}We could strike a deal. What forces do you require?", null);
